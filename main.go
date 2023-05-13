@@ -73,11 +73,9 @@ func capturePdf(url string) (string, error) {
 	id := uuid.New()
 
 	fileName := id.String() + ".pdf"
-	// create context
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
-	// capture pdf
 	var buf []byte
 	var schbytes []byte
 	var err error
@@ -93,17 +91,10 @@ func capturePdf(url string) (string, error) {
 	return "/public/" + fileName, err
 }
 
-// print a specific pdf page.
 func printToPDF(urlstr string, schbytes, res *[]byte) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.Navigate(urlstr),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// buf, _, err := page.PrintToPDF().WithPrintBackground(false).Do(ctx)
-			// if err != nil {
-			// 	return err
-			// }
-			// *res = buf
-			// return nil
 
 			err := emulation.SetDefaultBackgroundColorOverride().WithColor(&cdp.RGBA{R: 0, G: 0, B: 0, A: 0}).Do(ctx)
 			if err != nil {
