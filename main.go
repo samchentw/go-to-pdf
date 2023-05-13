@@ -28,12 +28,6 @@ func main() {
 	r := gin.Default()
 	r.Static("/public", "./assets")
 
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-
 	r.POST("/pdf", func(c *gin.Context) {
 		var makePdfInput MakePdfInput
 
@@ -61,6 +55,9 @@ func main() {
 			success = false
 			message = "建立失敗"
 		}
+		if fileName != "" {
+			fileName = c.Request.Host + fileName
+		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"success": success,
@@ -75,7 +72,7 @@ func main() {
 func capturePdf(url string) (string, error) {
 	id := uuid.New()
 
-	fileName := "./assets/" + id.String() + ".pdf"
+	fileName := id.String() + ".pdf"
 	// create context
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -89,11 +86,11 @@ func capturePdf(url string) (string, error) {
 		log.Fatal(err)
 	}
 
-	if err = os.WriteFile(fileName, buf, 0o644); err != nil {
+	if err = os.WriteFile("./assets/"+fileName, buf, 0o644); err != nil {
 		log.Fatal(err)
 	}
 
-	return fileName, err
+	return "/public/" + fileName, err
 }
 
 // print a specific pdf page.
