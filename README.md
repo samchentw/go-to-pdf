@@ -33,8 +33,8 @@ go test
 
 ## 依賴套件
 
-github.com/chromedp/cdproto
+https://github.com/chromedp/chromedp
 
-github.com/gin-gonic/gin
+https://github.com/gin-gonic/gin
 
-github.com/google/uuid
+https://github.com/google/uuid
