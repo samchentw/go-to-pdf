@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -24,9 +25,23 @@ type MakePdfInput struct {
 }
 
 func main() {
+	setSystemLog()
+	setGinLog()
 
+	gin.SetMode(gin.ReleaseMode)
+	gin.DisableConsoleColor()
+	r := setupRouter()
+	r.Run()
+
+}
+
+func setupRouter() *gin.Engine {
 	r := gin.Default()
+	r.Use(gin.Recovery())
 	r.Static("/public", "./assets")
+	r.GET("/ping", func(c *gin.Context) {
+		c.String(200, "pong")
+	})
 
 	r.POST("/pdf", func(c *gin.Context) {
 		var makePdfInput MakePdfInput
@@ -53,7 +68,7 @@ func main() {
 
 		if err != nil {
 			success = false
-			message = "建立失敗"
+			message = err.Error()
 		}
 		if fileName != "" {
 			fileName = c.Request.Host + fileName
@@ -65,8 +80,7 @@ func main() {
 			"message": message,
 		})
 	})
-	r.Run()
-
+	return r
 }
 
 func capturePdf(url string) (string, error) {
@@ -81,11 +95,11 @@ func capturePdf(url string) (string, error) {
 	var err error
 
 	if err = chromedp.Run(ctx, printToPDF(url, &schbytes, &buf)); err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	if err = os.WriteFile("./assets/"+fileName, buf, 0o644); err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	return "/public/" + fileName, err
@@ -112,4 +126,30 @@ func printToPDF(urlstr string, schbytes, res *[]byte) chromedp.Tasks {
 
 		}),
 	}
+}
+
+func setSystemLog() {
+	file, e1 := openLogFile("./system.log")
+	if e1 != nil {
+		log.Fatal(e1)
+	}
+	log.SetOutput(file)
+	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
+}
+
+func setGinLog() {
+	file, e2 := openLogFile("gin.log")
+	if e2 != nil {
+		log.Fatal(e2)
+	}
+
+	gin.DefaultWriter = io.MultiWriter(file)
+}
+
+func openLogFile(path string) (*os.File, error) {
+	logFile, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return logFile, nil
 }
