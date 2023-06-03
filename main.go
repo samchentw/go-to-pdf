@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -22,6 +23,12 @@ const (
 type MakePdfInput struct {
 	ApiKey string `json:"apiKey" binding:"required"`
 	Url    string `json:"url" binding:"required"`
+	Size   string `json:"size" binding:"required"`
+}
+
+type SizeInput struct {
+	Width  float64
+	Height float64
 }
 
 func main() {
@@ -62,28 +69,43 @@ func setupRouter() *gin.Engine {
 			return
 		}
 
-		message := "建立成功"
-		success := true
-		fileName, err := capturePdf(makePdfInput.Url)
+		fileName, err := capturePdf(makePdfInput.Url, makePdfInput.Size)
 
 		if err != nil {
-			success = false
-			message = err.Error()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"url":     fileName,
+				"message": err.Error(),
+			})
+			return
 		}
 		if fileName != "" {
 			fileName = c.Request.Host + fileName
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"success": success,
+			"success": true,
 			"url":     fileName,
-			"message": message,
+			"message": "建立成功",
 		})
 	})
 	return r
 }
 
-func capturePdf(url string) (string, error) {
+func capturePdf(url string, size string) (string, error) {
+	var sizeDict = map[string]SizeInput{}
+
+	sizeDict["A4"] = SizeInput{Width: 8.3, Height: 11.7}
+	sizeDict["A5"] = SizeInput{Width: 5.8, Height: 8.3}
+	sizeDict["A6"] = SizeInput{Width: 4.1, Height: 5.8}
+	sizeDict["A7"] = SizeInput{Width: 2.9, Height: 4.1}
+
+	sizeInput, ok := sizeDict[size]
+
+	if !ok {
+		return "", errors.New("尺吋格式錯誤")
+	}
+
 	id := uuid.New()
 
 	fileName := id.String() + ".pdf"
@@ -94,7 +116,7 @@ func capturePdf(url string) (string, error) {
 	var schbytes []byte
 	var err error
 
-	if err = chromedp.Run(ctx, printToPDF(url, &schbytes, &buf)); err != nil {
+	if err = chromedp.Run(ctx, printToPDF(url, &schbytes, &buf, sizeInput)); err != nil {
 		return "", err
 	}
 
@@ -105,7 +127,8 @@ func capturePdf(url string) (string, error) {
 	return "/public/" + fileName, err
 }
 
-func printToPDF(urlstr string, schbytes, res *[]byte) chromedp.Tasks {
+func printToPDF(urlstr string, schbytes, res *[]byte, size SizeInput) chromedp.Tasks {
+
 	return chromedp.Tasks{
 		chromedp.Navigate(urlstr),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -118,7 +141,7 @@ func printToPDF(urlstr string, schbytes, res *[]byte) chromedp.Tasks {
 			if err != nil {
 				return err
 			}
-			*res, _, err = page.PrintToPDF().WithPrintBackground(true).Do(ctx)
+			*res, _, err = page.PrintToPDF().WithPrintBackground(true).WithPaperWidth(size.Width).WithPaperHeight(size.Height).Do(ctx)
 			if err != nil {
 				return err
 			}
